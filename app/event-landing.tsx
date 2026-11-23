@@ -30,9 +30,9 @@ const packageIcons: Record<PackageId, typeof Ticket> = { general: Ticket, platin
 
 // Reemplaza `image` por la foto de cada trago (guárdalas en /public/drinks/).
 const drinks = [
-  { name: 'Jägermeister', bottle: 'Botella 700 ml', mixer: 'Jugo Gloria', price: 170, image: '/jagger.png' },
-  { name: 'Vodka Smirnoff', bottle: 'Botella 700 ml', mixer: 'Gaseosa', price: 160, image: '/vodka.png' },
-  { name: 'Ron Bacardi', bottle: 'Botella 700 ml', mixer: 'Coca-Cola', price: 160, image: '/bacardi.png' },
+  { name: 'Jägermeister', bottle: 'Botella 700 ml', mixer: 'Jugo Gloria', price: 170, image: '/jagger.webp' },
+  { name: 'Vodka Smirnoff', bottle: 'Botella 700 ml', mixer: 'Gaseosa', price: 160, image: '/vodka.webp' },
+  { name: 'Ron Bacardi', bottle: 'Botella 700 ml', mixer: 'Coca-Cola', price: 160, image: '/bacardi.webp' },
 ]
 
 const tickerItems = ['Boxeo en vivo', 'DJ toda la noche', 'Bar premium', 'Boxes VIP', 'Sábado 28 · Noviembre', 'Hacienda Nápoles', 'Corcho libre 9–10 PM']
