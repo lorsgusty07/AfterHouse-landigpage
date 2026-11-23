@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#4a1d73"/>
+      <stop offset=".55" stop-color="#22142e"/>
+      <stop offset="1" stop-color="#130d1a"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" x2="1">
+      <stop offset="0" stop-color="#c484f1" stop-opacity=".35"/>
+      <stop offset=".5" stop-color="#e9d2ff" stop-opacity=".1"/>
+      <stop offset="1" stop-color="#7d24d8" stop-opacity=".4"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="500" fill="url(#bg)"/>
+  <ellipse cx="200" cy="430" rx="110" ry="14" fill="#000" opacity=".35"/>
+  <path d="M182 70h36v70c0 18 42 34 42 78v190c0 10-8 16-18 16h-84c-10 0-18-6-18-16V218c0-44 42-60 42-78z" fill="url(#glass)" stroke="#c484f1" stroke-width="2"/>
+  <rect x="178" y="54" width="44" height="22" rx="3" fill="#7d24d8"/>
+  <rect x="152" y="262" width="96" height="66" rx="4" fill="none" stroke="#c484f1" stroke-opacity=".7" stroke-dasharray="5 4"/>
+  <text x="200" y="292" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="2" fill="#e9d2ff">TU FOTO</text>
+  <text x="200" y="310" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" letter-spacing="1.5" fill="#c484f1">AQUÍ</text>
+</svg>
+
