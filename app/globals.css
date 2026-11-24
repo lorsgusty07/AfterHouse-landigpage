@@ -2522,3 +2522,39 @@ input:focus-visible {
     justify-content: center;
   }
 }
+
+/* ───────── Payment Not Found Callout ───────── */
+.verify-not-found {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: rgba(245, 158, 11, .12);
+  border: 1px solid rgba(251, 191, 36, .45);
+  color: #fef3c7;
+}
+
+.verify-not-found svg {
+  color: #fbbf24;
+  flex: none;
+  margin-top: 2px;
+}
+
+.verify-not-found > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.verify-not-found strong {
+  font-size: 13px;
+  color: #fde68a;
+}
+
+.verify-not-found p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #f3e4b8;
+}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   CalendarDays,
@@ -12,12 +13,14 @@ import {
   Copy,
   Crown,
   Download,
+  FileDown,
   Gem,
   Loader2,
   MapPin,
   Menu,
   Minus,
   Plus,
+  RefreshCw,
   Smartphone,
   Ticket,
   X,
@@ -27,6 +30,7 @@ import {
   type PackageId,
   findInternalDuplicates,
 } from '@/lib/entradas'
+import { downloadTicketPdf } from '@/lib/ticket-pdf'
 
 type Package = {
   id: PackageId
@@ -136,11 +140,13 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
   const [codigoSeguridad, setCodigoSeguridad] = useState('')
   const [copiedPhone, setCopiedPhone] = useState(false)
   const [verifying, setVerifying] = useState(false)
+  const [notFoundNotice, setNotFoundNotice] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const cancelVerifyRef = useRef(false)
 
   // Confirmación
   const [codigoQr, setCodigoQr] = useState('')
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
   const qrWrapperRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -252,6 +258,7 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
     }
 
     setError('')
+    setNotFoundNotice(false)
     setVerifying(true)
     cancelVerifyRef.current = false
 
@@ -299,7 +306,7 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
     }
 
     if (!cancelVerifyRef.current) {
-      setError(`No encontramos tu pago de S/. ${total} todavía. Verifica el monto, el nombre del titular y vuelve a intentar.`)
+      setNotFoundNotice(true)
     }
     setVerifying(false)
   }
@@ -310,8 +317,30 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
     const url = canvas.toDataURL('image/png')
     const link = document.createElement('a')
     link.href = url
-    link.download = `entrada-${codigoQr || 'after-hours'}.png`
+    link.download = `qr-${codigoQr || 'after-hours'}.png`
     link.click()
+  }
+
+  const handleDownloadPdf = async () => {
+    const canvas = qrWrapperRef.current?.querySelector('canvas')
+    if (!canvas || !codigoQr) return
+    setDownloadingPdf(true)
+    try {
+      const qrDataUrl = canvas.toDataURL('image/png')
+      await downloadTicketPdf({
+        codigoQr,
+        qrDataUrl,
+        tipo: selected.id,
+        tipoNombre: selected.name,
+        cantidadEntradas: isGeneral ? quantity : 1,
+        totalPersonas: attendees.length,
+        precioTotal: total,
+        nombreTitular: nombreTitular.trim() || `${attendees[0].firstName.trim()} ${attendees[0].lastName.trim()}`,
+        asistentes: toApiAsistentes(attendees),
+      })
+    } finally {
+      setDownloadingPdf(false)
+    }
   }
 
   return (
@@ -337,8 +366,11 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
               </div>
             </div>
             <div className="confirmation-actions">
-              <button type="button" className="button button-primary" onClick={downloadQr}>
-                <Download size={16} /> Descargar QR (PNG)
+              <button type="button" className="button button-primary" onClick={handleDownloadPdf} disabled={downloadingPdf}>
+                {downloadingPdf ? <><Loader2 size={16} className="spin-icon" /> Generando PDF...</> : <><FileDown size={16} /> Descargar entrada (PDF)</>}
+              </button>
+              <button type="button" className="button button-outline" onClick={downloadQr}>
+                <Download size={16} /> Solo QR (PNG)
               </button>
               <button type="button" className="button button-outline" onClick={onClose}>Cerrar</button>
             </div>
@@ -425,6 +457,18 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
                     </button>
                   </div>
                 )}
+                {notFoundNotice && !verifying && (
+                  <div className="verify-not-found" role="alert">
+                    <AlertCircle size={18} />
+                    <div>
+                      <strong>No se pudo corroborar tu pago todavía</strong>
+                      <p>
+                        Espera unos momentos y vuelve a intentarlo — a veces la notificación de Yape tarda unos segundos en llegar.
+                        Asegúrate también de haber enviado exactamente <strong>S/. {total}</strong> al <strong>{PAYMENT_PHONE}</strong> y que el nombre del titular coincida.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {error && <p className="form-error" role="alert">{error}</p>}
@@ -434,12 +478,18 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
                   type="button"
                   className="button button-outline"
                   disabled={verifying}
-                  onClick={() => { setError(''); setStep('attendees') }}
+                  onClick={() => { setError(''); setNotFoundNotice(false); setStep('attendees') }}
                 >
                   <ArrowLeft size={16} /> Volver
                 </button>
                 <button className="button button-primary" type="submit" disabled={verifying}>
-                  {verifying ? <><Loader2 size={16} className="spin-icon" /> Verificando...</> : <>Ya pagué · Verificar <ArrowRight size={17} /></>}
+                  {verifying ? (
+                    <><Loader2 size={16} className="spin-icon" /> Verificando...</>
+                  ) : notFoundNotice ? (
+                    <><RefreshCw size={15} /> Volver a corroborar</>
+                  ) : (
+                    <>Ya pagué · Verificar <ArrowRight size={17} /></>
+                  )}
                 </button>
               </div>
             </form>
