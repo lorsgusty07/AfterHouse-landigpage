@@ -200,6 +200,13 @@ function extractSecurityCode(raw: string): string | null {
   return match ? match[1] : null
 }
 
+function extractSenderSegment(raw: string): string {
+  const normalized = normalizeText(raw)
+  const withoutPrefix = normalized.replace(/^yape!?\s*/i, '')
+  const cutIndex = withoutPrefix.search(/\bte\s+envio\b/)
+  return cutIndex > 0 ? withoutPrefix.slice(0, cutIndex).trim() : withoutPrefix
+}
+
 function matchesTitularInRaw(nombreTitular: string, raw: string): boolean {
   const userWords = normalizeText(nombreTitular)
     .replace(/[^a-z0-9\s]/g, ' ')
@@ -208,8 +215,11 @@ function matchesTitularInRaw(nombreTitular: string, raw: string): boolean {
 
   if (userWords.length === 0) return false
 
-  // Extrae tokens de raw preservando asteriscos (ej. "cca*")
-  const rawTokens = normalizeText(raw)
+  // Aísla solo el nombre del remitente (antes de "te envió" y sin "Yape!")
+  const senderSegment = extractSenderSegment(raw)
+
+  // Extrae tokens preservando asteriscos (ej. "cca*")
+  const rawTokens = senderSegment
     .replace(/[^a-z0-9*\s]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
@@ -227,8 +237,7 @@ function matchesTitularInRaw(nombreTitular: string, raw: string): boolean {
     return matchesWord(userWords[0])
   }
 
-  // Coincide si al menos 2 palabras del titular hacen match (ej. nombre + apellido o apellido enmascarado con *),
-  // o si coincide el primer nombre y alguna palabra del apellido
+  // Coincide si al menos 2 palabras del titular hacen match (ej. nombre + apellido completo o enmascarado con *)
   const matchedCount = userWords.filter(matchesWord).length
   return matchedCount >= 2
 }
