@@ -2558,3 +2558,68 @@ input:focus-visible {
   line-height: 1.5;
   color: #f3e4b8;
 }
+
+/* ───────── Box Stock Badge & Sold Out State ───────── */
+.stock-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 99px;
+  background: rgba(19, 13, 26, .55);
+  border: 1px solid rgba(233, 201, 255, .38);
+  color: #f3e4ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.stock-badge.is-low {
+  border-color: rgba(251, 191, 36, .65);
+  background: rgba(245, 158, 11, .2);
+  color: #fde68a;
+}
+
+.stock-badge.is-empty {
+  border-color: rgba(248, 113, 113, .6);
+  background: rgba(239, 68, 68, .22);
+  color: #fecaca;
+}
+
+.ticket-stamp-soldout {
+  background: #991b1b;
+  border-color: #fca5a5;
+  color: #fef2f2;
+  box-shadow: 0 0 20px rgba(239, 68, 68, .55);
+}
+
+.ticket.is-sold-out {
+  opacity: .68;
+  filter: grayscale(.35);
+}
+
+.ticket.is-sold-out:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.tier-platinum.is-sold-out,
+.tier-platinum.is-sold-out:hover {
+  transform: scale(1.02);
+  box-shadow: none;
+}
+
+.tier-diamond.is-sold-out {
+  overflow: visible;
+}
+
+.button-soldout {
+  background: rgba(239, 68, 68, .15);
+  border-color: rgba(248, 113, 113, .45);
+  color: #fca5a5;
+  cursor: not-allowed;
+}
+
+.button-soldout:hover {
+  transform: none;
+}

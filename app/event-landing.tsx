@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import {
   type AsistenteInput,
+  type BoxAvailability,
   type PackageId,
   findInternalDuplicates,
 } from '@/lib/entradas'
@@ -125,7 +126,7 @@ function AttendeeFields({ attendee, showErrors, onChange }: { attendee: Attendee
   )
 }
 
-function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () => void }) {
+function PurchaseModal({ selected, onClose, onConfirmed }: { selected: Package; onClose: () => void; onConfirmed: () => void }) {
   const isGeneral = selected.id === 'general'
   const [step, setStep] = useState<ModalStep>('attendees')
   const [quantity, setQuantity] = useState(1)
@@ -286,6 +287,7 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
           setCodigoQr(data.codigoQr)
           setStep('confirmed')
           setVerifying(false)
+          onConfirmed()
           return
         }
         // Si es error definitivo (duplicado, validación, servidor), detener polling
@@ -590,8 +592,24 @@ export default function EventLanding() {
   const [selected, setSelected] = useState<Package | null>(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [boxAvailability, setBoxAvailability] = useState<BoxAvailability | null>(null)
   const closePurchase = useCallback(() => setSelected(null), [])
   const closeNav = () => setMobileNavOpen(false)
+
+  const refreshAvailability = useCallback(() => {
+    fetch('/api/entradas/disponibilidad', { cache: 'no-store' })
+      .then(res => res.json())
+      .then((data: { ok?: boolean; disponibilidad?: BoxAvailability }) => {
+        if (data.ok && data.disponibilidad) {
+          setBoxAvailability(data.disponibilidad)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    refreshAvailability()
+  }, [refreshAvailability])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40)
@@ -622,7 +640,6 @@ export default function EventLanding() {
         <div className="hero-image" />
         <div className="hero-overlay" />
         <div className="hero-content">
-          <p className="hero-kicker"><span className="live-dot" />After Hours presenta · Arequipa</p>
           <h1 className="hero-title">
             <span className="t-outline">The Last</span>
             <span className="t-neon">Mini Fight</span>
@@ -663,13 +680,30 @@ export default function EventLanding() {
         <div className="ticket-grid">
           {packages.map((item, index) => {
             const Icon = packageIcons[item.id]
+            const stock =
+              item.id === 'platinum' || item.id === 'diamond'
+                ? boxAvailability?.[item.id] ?? null
+                : null
+            const isSoldOut = stock !== null && stock.disponibles <= 0
+            const isLowStock = stock !== null && stock.disponibles === 1
             return (
-              <article className={`ticket tier-${item.id}`} key={item.id}>
-                {item.featured && <span className="ticket-stamp">Más elegido</span>}
+              <article className={`ticket tier-${item.id} ${isSoldOut ? 'is-sold-out' : ''}`} key={item.id}>
+                {item.featured && !isSoldOut && <span className="ticket-stamp">Más elegido</span>}
+                {isSoldOut && <span className="ticket-stamp ticket-stamp-soldout">Agotado</span>}
                 <div className="ticket-main">
                   <div className="ticket-head">
                     <span>N° {pad(index + 1)} · {item.kind}</span>
-                    <Icon />
+                    {stock ? (
+                      <span className={`stock-badge ${isSoldOut ? 'is-empty' : isLowStock ? 'is-low' : ''}`}>
+                        {isSoldOut
+                          ? 'Agotado'
+                          : isLowStock
+                            ? `¡Último! (1/${stock.total})`
+                            : `${stock.disponibles}/${stock.total} disp.`}
+                      </span>
+                    ) : (
+                      <Icon />
+                    )}
                   </div>
                   <h3 className="ticket-name">{item.title[0]}<em>{item.title[1]}</em></h3>
                   <p className="ticket-tagline">{item.description}</p>
@@ -685,8 +719,16 @@ export default function EventLanding() {
                     <strong>{item.id === 'general' ? `x${GENERAL_MAX} máx.` : `${item.people} pers.`}</strong>
                   </div>
                   <div className="barcode" aria-hidden="true" />
-                  <button className={`button ${item.featured ? 'button-light' : 'button-outline'}`} onClick={() => setSelected(item)}>
-                    {item.id === 'general' ? 'Comprar entradas' : `Reservar ${item.name}`} <ArrowRight size={16} />
+                  <button
+                    className={`button ${isSoldOut ? 'button-soldout' : item.featured ? 'button-light' : 'button-outline'}`}
+                    disabled={isSoldOut}
+                    onClick={() => { if (!isSoldOut) setSelected(item) }}
+                  >
+                    {isSoldOut
+                      ? 'Box agotado'
+                      : item.id === 'general'
+                        ? <>Comprar entradas <ArrowRight size={16} /></>
+                        : <>Reservar {item.name} <ArrowRight size={16} /></>}
                   </button>
                 </div>
               </article>
@@ -760,7 +802,7 @@ export default function EventLanding() {
         </div>
       </footer>
 
-      {selected && <PurchaseModal key={selected.id} selected={selected} onClose={closePurchase} />}
+      {selected && <PurchaseModal key={selected.id} selected={selected} onClose={closePurchase} onConfirmed={refreshAvailability} />}
     </main>
   )
 }

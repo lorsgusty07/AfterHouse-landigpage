@@ -4,6 +4,7 @@ import {
   type AsistenteInput,
   type EntradaRecord,
   type PackageId,
+  checkBoxStock,
   findExistingDuplicates,
   findInternalDuplicates,
   validateAsistentesFormat,
@@ -36,6 +37,11 @@ export async function POST(request: Request) {
     }
 
     const existing = await rtdbGet<Record<string, EntradaRecord>>('entrada')
+    const stockError = checkBoxStock(tipo, existing)
+    if (stockError) {
+      return NextResponse.json({ ok: false, error: stockError }, { status: 409 })
+    }
+
     const existingError = findExistingDuplicates(asistentes, existing)
     if (existingError) {
       return NextResponse.json({ ok: false, error: existingError }, { status: 409 })

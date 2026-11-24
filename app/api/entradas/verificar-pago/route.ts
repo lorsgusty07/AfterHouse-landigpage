@@ -7,6 +7,7 @@ import {
   PACKAGES_CATALOG,
   type PackageId,
   type PagoYapeRecord,
+  checkBoxStock,
   findExistingDuplicates,
   findInternalDuplicates,
   findMatchingYapePago,
@@ -51,8 +52,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: internalError }, { status: 400 })
     }
 
-    // Revalidar duplicados en Firebase antes de consumir el pago
+    // Revalidar stock de boxes y duplicados en Firebase antes de consumir el pago
     const existingEntradas = await rtdbGet<Record<string, EntradaRecord>>('entrada')
+    const stockError = checkBoxStock(tipo, existingEntradas)
+    if (stockError) {
+      return NextResponse.json({ ok: false, error: stockError }, { status: 409 })
+    }
+
     const existingError = findExistingDuplicates(asistentes, existingEntradas)
     if (existingError) {
       return NextResponse.json({ ok: false, error: existingError }, { status: 409 })

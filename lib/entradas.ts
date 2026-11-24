@@ -46,6 +46,56 @@ export const PACKAGES_CATALOG: Record<PackageId, { name: string; price: number; 
   diamond: { name: 'Box Diamond', price: 600, people: 10, maxQty: 1 },
 }
 
+export const BOX_LIMITS: Record<'platinum' | 'diamond', number> = {
+  platinum: 6,
+  diamond: 3,
+}
+
+export type BoxAvailability = Record<
+  'platinum' | 'diamond',
+  { total: number; vendidos: number; disponibles: number }
+>
+
+export function getBoxAvailability(
+  existingEntradas: Record<string, EntradaRecord> | null
+): BoxAvailability {
+  let platinumSold = 0
+  let diamondSold = 0
+
+  if (existingEntradas) {
+    for (const entrada of Object.values(existingEntradas)) {
+      if (!entrada) continue
+      if (entrada.tipo === 'platinum') platinumSold += 1
+      else if (entrada.tipo === 'diamond') diamondSold += 1
+    }
+  }
+
+  return {
+    platinum: {
+      total: BOX_LIMITS.platinum,
+      vendidos: platinumSold,
+      disponibles: Math.max(0, BOX_LIMITS.platinum - platinumSold),
+    },
+    diamond: {
+      total: BOX_LIMITS.diamond,
+      vendidos: diamondSold,
+      disponibles: Math.max(0, BOX_LIMITS.diamond - diamondSold),
+    },
+  }
+}
+
+export function checkBoxStock(
+  tipo: PackageId,
+  existingEntradas: Record<string, EntradaRecord> | null
+): string | null {
+  if (tipo !== 'platinum' && tipo !== 'diamond') return null
+  const availability = getBoxAvailability(existingEntradas)
+  if (availability[tipo].disponibles <= 0) {
+    return `Lo sentimos, los ${PACKAGES_CATALOG[tipo].name} ya están agotados.`
+  }
+  return null
+}
+
 export const PAYMENT_WINDOW_MS = 30 * 60 * 1000 // 30 minutos
 export const FUTURE_SKEW_MS = 5 * 60 * 1000 // 5 minutos de margen por desfase de reloj
 
