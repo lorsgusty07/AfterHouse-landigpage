@@ -2012,3 +2012,513 @@ input:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ───────── Payment Step & QR Download ───────── */
+.qr-canvas-box {
+  display: grid;
+  place-items: center;
+}
+
+.qr-code-text {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f2e8fa;
+  color: #5a1d96;
+  font-size: 11px;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.payment-scroll {
+  overflow: auto;
+  min-height: 0;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.method-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.method-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid #3e3148;
+  background: #130d1a;
+  color: #b8aec0;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: .2s;
+}
+
+.method-tab.is-active {
+  border-color: #a85aee;
+  background: rgba(125, 36, 216, .24);
+  color: #fff;
+  box-shadow: 0 0 18px rgba(125, 36, 216, .3);
+}
+
+.method-tab.is-disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.method-tab span {
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: #2b2133;
+  color: #b8aec0;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.yape-box {
+  display: grid;
+  grid-template-columns: 156px 1fr;
+  gap: 18px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 16px;
+  background: #130d1a;
+  border: 1px solid #443154;
+}
+
+.yape-qr-wrap {
+  background: #fff;
+  padding: 8px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+}
+
+.yape-qr-wrap img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.yape-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.yape-label {
+  color: #a49ba9;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.yape-phone-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.yape-phone-row strong {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 30px;
+  letter-spacing: .03em;
+  color: #fff;
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 99px;
+  border: 1px solid #5a4270;
+  background: #21172a;
+  color: #e5ccf8;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: .2s;
+}
+
+.copy-btn:hover {
+  border-color: #c484f1;
+  background: #7d24d8;
+  color: #fff;
+}
+
+.yape-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(125, 36, 216, .18);
+  border: 1px solid rgba(196, 132, 241, .35);
+}
+
+.yape-amount span {
+  color: #d2c4dc;
+  font-size: 11px;
+}
+
+.yape-amount strong {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 26px;
+  color: #fff;
+}
+
+.yape-tip {
+  margin: 0;
+  color: #9a8fa2;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.payment-fields {
+  margin-top: 2px;
+}
+
+.field-subtle {
+  color: #8f8398;
+  font-size: 10px;
+}
+
+.verifying-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(125, 36, 216, .2);
+  border: 1px solid #8a44cc;
+}
+
+.verifying-box > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.verifying-box strong {
+  font-size: 12px;
+  color: #fff;
+}
+
+.verifying-box span {
+  font-size: 11px;
+  color: #cbbad8;
+}
+
+.cancel-verify-btn {
+  padding: 6px 10px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, .25);
+  background: transparent;
+  color: #e6dcf0;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.spin-icon {
+  animation: spinIcon 1s linear infinite;
+  flex: none;
+  color: #d49cff;
+}
+
+@keyframes spinIcon {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 700px) {
+  .yape-box {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .yape-qr-wrap {
+    max-width: 170px;
+  }
+
+  .yape-phone-row {
+    justify-content: center;
+  }
+}
+
+/* ───────── Payment Step & QR Download ───────── */
+.qr-canvas-box {
+  display: grid;
+  place-items: center;
+}
+
+.qr-code-text {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f2e8fa;
+  color: #5a1d96;
+  font-size: 11px;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.payment-scroll {
+  overflow: auto;
+  min-height: 0;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.method-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.method-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid #3e3148;
+  background: #130d1a;
+  color: #b8aec0;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: .2s;
+}
+
+.method-tab.is-active {
+  border-color: #a85aee;
+  background: rgba(125, 36, 216, .24);
+  color: #fff;
+  box-shadow: 0 0 18px rgba(125, 36, 216, .3);
+}
+
+.method-tab.is-disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.method-tab span {
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: #2b2133;
+  color: #b8aec0;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.yape-box {
+  display: grid;
+  grid-template-columns: 156px 1fr;
+  gap: 18px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 16px;
+  background: #130d1a;
+  border: 1px solid #443154;
+}
+
+.yape-qr-wrap {
+  background: #fff;
+  padding: 8px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+}
+
+.yape-qr-wrap img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.yape-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.yape-label {
+  color: #a49ba9;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.yape-phone-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.yape-phone-row strong {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 30px;
+  letter-spacing: .03em;
+  color: #fff;
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 99px;
+  border: 1px solid #5a4270;
+  background: #21172a;
+  color: #e5ccf8;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: .2s;
+}
+
+.copy-btn:hover {
+  border-color: #c484f1;
+  background: #7d24d8;
+  color: #fff;
+}
+
+.yape-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(125, 36, 216, .18);
+  border: 1px solid rgba(196, 132, 241, .35);
+}
+
+.yape-amount span {
+  color: #d2c4dc;
+  font-size: 11px;
+}
+
+.yape-amount strong {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 26px;
+  color: #fff;
+}
+
+.yape-tip {
+  margin: 0;
+  color: #9a8fa2;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.payment-fields {
+  margin-top: 2px;
+}
+
+.field-subtle {
+  color: #8f8398;
+  font-size: 10px;
+}
+
+.verifying-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(125, 36, 216, .2);
+  border: 1px solid #8a44cc;
+}
+
+.verifying-box > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.verifying-box strong {
+  font-size: 12px;
+  color: #fff;
+}
+
+.verifying-box span {
+  font-size: 11px;
+  color: #cbbad8;
+}
+
+.cancel-verify-btn {
+  padding: 6px 10px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, .25);
+  background: transparent;
+  color: #e6dcf0;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.spin-icon {
+  animation: spinIcon 1s linear infinite;
+  flex: none;
+  color: #d49cff;
+}
+
+@keyframes spinIcon {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 700px) {
+  .yape-box {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .yape-qr-wrap {
+    max-width: 170px;
+  }
+
+  .yape-phone-row {
+    justify-content: center;
+  }
+}

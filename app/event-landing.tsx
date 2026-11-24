@@ -1,10 +1,33 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
-import { ArrowRight, CalendarDays, Check, ChevronDown, Clock3, Crown, Gem, MapPin, Menu, Minus, Plus, Ticket, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { QRCodeCanvas } from 'qrcode.react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  Clock3,
+  Copy,
+  Crown,
+  Download,
+  Gem,
+  Loader2,
+  MapPin,
+  Menu,
+  Minus,
+  Plus,
+  Smartphone,
+  Ticket,
+  X,
+} from 'lucide-react'
+import {
+  type AsistenteInput,
+  type PackageId,
+  findInternalDuplicates,
+} from '@/lib/entradas'
 
-type PackageId = 'general' | 'platinum' | 'diamond'
 type Package = {
   id: PackageId
   name: string
@@ -17,8 +40,11 @@ type Package = {
   featured?: boolean
 }
 type Attendee = { firstName: string; lastName: string; dni: string; phone: string; email: string }
+type ModalStep = 'attendees' | 'payment' | 'confirmed'
 
 const GENERAL_MAX = 10
+const PAYMENT_PHONE = '915 989 987'
+const PAYMENT_PHONE_RAW = '915989987'
 
 const packages: Package[] = [
   { id: 'general', name: 'Entrada General', title: ['Entrada', 'General'], kind: 'Individual', price: 20, people: 1, description: 'Preventa · Elige cuántas entradas quieres.', perks: ['Acceso al evento', 'DJ en vivo toda la noche', 'Una noche para recordar'] },
@@ -28,11 +54,10 @@ const packages: Package[] = [
 
 const packageIcons: Record<PackageId, typeof Ticket> = { general: Ticket, platinum: Crown, diamond: Gem }
 
-// Reemplaza `image` por la foto de cada trago (guárdalas en /public/drinks/).
 const drinks = [
-  { name: 'Jägermeister', bottle: 'Botella 700 ml', mixer: 'Jugo Gloria', price: 170, image: '/jagger.webp' },
-  { name: 'Vodka Smirnoff', bottle: 'Botella 700 ml', mixer: 'Gaseosa', price: 160, image: '/vodka.webp' },
-  { name: 'Ron Bacardi', bottle: 'Botella 700 ml', mixer: 'Coca-Cola', price: 160, image: '/bacardi.webp' },
+  { name: 'Jägermeister', bottle: 'Botella 700 ml', mixer: 'Jugo Gloria', price: 170, image: '/jagger.png' },
+  { name: 'Vodka Smirnoff', bottle: 'Botella 700 ml', mixer: 'Gaseosa', price: 160, image: '/vodka.png' },
+  { name: 'Ron Bacardi', bottle: 'Botella 700 ml', mixer: 'Coca-Cola', price: 160, image: '/bacardi.png' },
 ]
 
 const tickerItems = ['Boxeo en vivo', 'DJ toda la noche', 'Bar premium', 'Boxes VIP', 'Sábado 28 · Noviembre', 'Hacienda Nápoles', 'Corcho libre 9–10 PM']
@@ -56,6 +81,14 @@ const validators: Record<keyof Attendee, (value: string) => boolean> = {
 const emptyAttendee = (): Attendee => ({ firstName: '', lastName: '', dni: '', phone: '', email: '' })
 const isComplete = (attendee: Attendee) => attendeeFields.every(field => validators[field.key](attendee[field.key]))
 const pad = (value: number) => String(value).padStart(2, '0')
+const toApiAsistentes = (list: Attendee[]): AsistenteInput[] =>
+  list.map(a => ({
+    nombres: a.firstName.trim(),
+    apellidos: a.lastName.trim(),
+    dni: a.dni.trim(),
+    telefono: a.phone.trim(),
+    correo: a.email.trim().toLowerCase(),
+  }))
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return <p className="eyebrow"><span />{children}</p>
@@ -90,23 +123,39 @@ function AttendeeFields({ attendee, showErrors, onChange }: { attendee: Attendee
 
 function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () => void }) {
   const isGeneral = selected.id === 'general'
+  const [step, setStep] = useState<ModalStep>('attendees')
   const [quantity, setQuantity] = useState(1)
   const [attendees, setAttendees] = useState<Attendee[]>(() => Array.from({ length: selected.people }, emptyAttendee))
   const [openIndex, setOpenIndex] = useState<number | null>(0)
   const [revealed, setRevealed] = useState<number[]>([])
-  const [confirmed, setConfirmed] = useState(false)
   const [error, setError] = useState('')
+  const [validating, setValidating] = useState(false)
+
+  // Paso de pago
+  const [nombreTitular, setNombreTitular] = useState('')
+  const [codigoSeguridad, setCodigoSeguridad] = useState('')
+  const [copiedPhone, setCopiedPhone] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  const cancelVerifyRef = useRef(false)
+
+  // Confirmación
+  const [codigoQr, setCodigoQr] = useState('')
+  const qrWrapperRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !verifying) onClose()
+    }
     window.addEventListener('keydown', onKey)
     return () => {
+      cancelVerifyRef.current = true
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', onKey)
     }
-  }, [onClose])
+  }, [onClose, verifying])
 
   const multi = attendees.length > 1
   const completeCount = attendees.filter(isComplete).length
@@ -134,7 +183,7 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
     setOpenIndex(index + 1 < attendees.length ? index + 1 : null)
   }
 
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleAttendeesSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const firstInvalid = attendees.findIndex(person => !isComplete(person))
     if (firstInvalid !== -1) {
@@ -143,41 +192,266 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
       setError(multi ? `Faltan datos del asistente ${pad(firstInvalid + 1)}. Revisa los campos marcados.` : 'Revisa los campos marcados.')
       return
     }
+
+    const apiAsistentes = toApiAsistentes(attendees)
+    const internalDup = findInternalDuplicates(apiAsistentes)
+    if (internalDup) {
+      setError(internalDup)
+      return
+    }
+
     setError('')
-    setConfirmed(true)
+    setValidating(true)
+    try {
+      const res = await fetch('/api/entradas/validar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: selected.id,
+          cantidad: isGeneral ? quantity : 1,
+          asistentes: apiAsistentes,
+        }),
+      })
+      const data = (await res.json()) as { ok?: boolean; error?: string }
+      if (!res.ok || !data.ok) {
+        setError(data.error || 'No se pudieron validar los asistentes.')
+        return
+      }
+      if (!nombreTitular.trim()) {
+        setNombreTitular(`${attendees[0].firstName.trim()} ${attendees[0].lastName.trim()}`)
+      }
+      setStep('payment')
+    } catch {
+      setError('Error de conexión al validar los datos. Intenta de nuevo.')
+    } finally {
+      setValidating(false)
+    }
   }
 
-  const qrValue = `Order: ${summary} | Titular: ${attendees[0]?.firstName} ${attendees[0]?.lastName} | Event: The Last Mini Fight Party - 28/11`
+  const copyPhone = async () => {
+    try {
+      await navigator.clipboard.writeText(PAYMENT_PHONE_RAW)
+      setCopiedPhone(true)
+      setTimeout(() => setCopiedPhone(false), 2000)
+    } catch {
+      // Fallback silencioso
+    }
+  }
+
+  const handleVerifyPayment = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const titular = nombreTitular.trim()
+    if (titular.length < 3) {
+      setError('Ingresa el nombre y apellido del titular que realizó el Yape.')
+      return
+    }
+    const cleanCode = codigoSeguridad.replace(/\D/g, '')
+    if (cleanCode && cleanCode.length !== 3) {
+      setError('El código de seguridad debe tener 3 dígitos (o déjalo vacío si pagaste desde Plin).')
+      return
+    }
+
+    setError('')
+    setVerifying(true)
+    cancelVerifyRef.current = false
+
+    const maxAttempts = 10
+    const apiAsistentes = toApiAsistentes(attendees)
+
+    for (let i = 1; i <= maxAttempts; i++) {
+      if (cancelVerifyRef.current) break
+      setAttempt(i)
+      try {
+        const res = await fetch('/api/entradas/verificar-pago', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipo: selected.id,
+            cantidad: isGeneral ? quantity : 1,
+            metodoPago: 'yape',
+            nombreTitular: titular,
+            codigoSeguridad: cleanCode || null,
+            asistentes: apiAsistentes,
+          }),
+        })
+        const data = (await res.json()) as { ok?: boolean; pending?: boolean; codigoQr?: string; error?: string }
+        if (res.ok && data.ok && data.codigoQr) {
+          setCodigoQr(data.codigoQr)
+          setStep('confirmed')
+          setVerifying(false)
+          return
+        }
+        // Si es error definitivo (duplicado, validación, servidor), detener polling
+        if (!data.pending) {
+          setError(data.error || 'No se pudo completar la verificación.')
+          setVerifying(false)
+          return
+        }
+      } catch {
+        setError('Error de red al verificar el pago. Intenta nuevamente.')
+        setVerifying(false)
+        return
+      }
+
+      if (i < maxAttempts && !cancelVerifyRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 3000))
+      }
+    }
+
+    if (!cancelVerifyRef.current) {
+      setError(`No encontramos tu pago de S/. ${total} todavía. Verifica el monto, el nombre del titular y vuelve a intentar.`)
+    }
+    setVerifying(false)
+  }
+
+  const downloadQr = () => {
+    const canvas = qrWrapperRef.current?.querySelector('canvas')
+    if (!canvas) return
+    const url = canvas.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `entrada-${codigoQr || 'after-hours'}.png`
+    link.click()
+  }
 
   return (
-    <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
+    <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !verifying) onClose() }}>
       <section className="purchase-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-title">
-        <button className="modal-close" onClick={onClose} aria-label="Cerrar ventana"><X /></button>
-        {confirmed ? (
+        <button className="modal-close" onClick={() => { if (!verifying) onClose() }} aria-label="Cerrar ventana" disabled={verifying}><X /></button>
+
+        {step === 'confirmed' ? (
           <div className="confirmation">
             <div className="success-icon"><Check /></div>
-            <Eyebrow>Tu noche empieza aquí</Eyebrow>
-            <h2 id="purchase-title">¡Gracias por tu compra!</h2>
-            <p className="confirmation-copy">Tu reserva simulada está lista. Guarda este código para tenerlo a mano.</p>
+            <Eyebrow>Pago verificado · Tu noche empieza aquí</Eyebrow>
+            <h2 id="purchase-title">¡Entrada confirmada!</h2>
+            <p className="confirmation-copy">Guarda o descarga este código QR. Deberás presentarlo en la puerta el día del evento.</p>
             <div className="qr-card">
-              <QRCodeSVG value={qrValue} size={176} level="M" marginSize={2} />
+              <div ref={qrWrapperRef} className="qr-canvas-box">
+                <QRCodeCanvas value={codigoQr} size={184} level="M" marginSize={2} />
+              </div>
               <div>
-                <span>RESUMEN DE COMPRA</span>
+                <span>CÓDIGO ÚNICO</span>
                 <strong>{summary}</strong>
-                <p>S/. {total}</p>
+                <p>S/. {total} · Yape verificado</p>
+                <code className="qr-code-text">{codigoQr}</code>
               </div>
             </div>
-            <p className="demo-note">Simulación de compra · No se realizó ningún cobro</p>
-            <button className="button button-primary modal-done" onClick={onClose}>Cerrar</button>
+            <div className="confirmation-actions">
+              <button type="button" className="button button-primary" onClick={downloadQr}>
+                <Download size={16} /> Descargar QR (PNG)
+              </button>
+              <button type="button" className="button button-outline" onClick={onClose}>Cerrar</button>
+            </div>
+            <p className="demo-note">Código válido para un solo ingreso · After Hours</p>
           </div>
+        ) : step === 'payment' ? (
+          <>
+            <Eyebrow>Paso 2 de 2 · Pago seguro</Eyebrow>
+            <h2 id="purchase-title">Paga con Yape</h2>
+            <p className="modal-intro">Realiza el pago exacto de <strong>S/. {total}</strong> y luego presiona verificar.</p>
+            <form onSubmit={handleVerifyPayment} noValidate>
+              <div className="payment-scroll">
+                <div className="method-tabs" role="tablist" aria-label="Método de pago">
+                  <button type="button" role="tab" aria-selected="true" className="method-tab is-active">
+                    <Smartphone size={15} /> Yape
+                  </button>
+                  <button type="button" role="tab" aria-selected="false" className="method-tab is-disabled" disabled>
+                    <Smartphone size={15} /> Plin <span>Pronto</span>
+                  </button>
+                </div>
+
+                <div className="yape-box">
+                  <div className="yape-qr-wrap">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/yape.png" alt="Código QR de Yape" />
+                  </div>
+                  <div className="yape-details">
+                    <span className="yape-label">Número Yape / Plin</span>
+                    <div className="yape-phone-row">
+                      <strong>{PAYMENT_PHONE}</strong>
+                      <button type="button" className="copy-btn" onClick={copyPhone}>
+                        {copiedPhone ? <><Check size={13} /> Copiado</> : <><Copy size={13} /> Copiar</>}
+                      </button>
+                    </div>
+                    <div className="yape-amount">
+                      <span>Monto exacto</span>
+                      <strong>S/. {total}</strong>
+                    </div>
+                    <p className="yape-tip">Puedes yapear escaneando el QR o desde Plin al número indicado.</p>
+                  </div>
+                </div>
+
+                <div className="form-grid payment-fields">
+                  <label className="form-field form-field-wide">
+                    <span>Nombre del titular que realiza el pago</span>
+                    <input
+                      type="text"
+                      value={nombreTitular}
+                      placeholder="Ej. Gustavo Ccallo"
+                      maxLength={100}
+                      disabled={verifying}
+                      onChange={e => setNombreTitular(e.target.value)}
+                    />
+                    <small className="field-subtle">Tal como aparece en tu cuenta de Yape o Plin.</small>
+                  </label>
+                  <label className="form-field form-field-wide">
+                    <span>Código de seguridad de Yape (opcional)</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={codigoSeguridad}
+                      placeholder="3 dígitos (ej. 226)"
+                      maxLength={3}
+                      disabled={verifying}
+                      onChange={e => setCodigoSeguridad(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                    />
+                    <small className="field-subtle">Si pagas desde Plin hacia Yape, déjalo vacío.</small>
+                  </label>
+                </div>
+
+                {verifying && (
+                  <div className="verifying-box" role="status" aria-live="polite">
+                    <Loader2 size={18} className="spin-icon" />
+                    <div>
+                      <strong>Buscando tu pago en Yape...</strong>
+                      <span>Intento {attempt} de 10 · Esto puede tardar unos segundos</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="cancel-verify-btn"
+                      onClick={() => { cancelVerifyRef.current = true; setVerifying(false) }}
+                    >
+                      Detener
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {error && <p className="form-error" role="alert">{error}</p>}
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="button button-outline"
+                  disabled={verifying}
+                  onClick={() => { setError(''); setStep('attendees') }}
+                >
+                  <ArrowLeft size={16} /> Volver
+                </button>
+                <button className="button button-primary" type="submit" disabled={verifying}>
+                  {verifying ? <><Loader2 size={16} className="spin-icon" /> Verificando...</> : <>Ya pagué · Verificar <ArrowRight size={17} /></>}
+                </button>
+              </div>
+            </form>
+          </>
         ) : (
           <>
-            <Eyebrow>Reserva tu lugar</Eyebrow>
+            <Eyebrow>Paso 1 de 2 · Reserva tu lugar</Eyebrow>
             <h2 id="purchase-title">{selected.name}</h2>
             <p className="modal-intro">
-              {isGeneral ? 'Elige cuántas entradas quieres y completa los datos de cada asistente.' : `Completa los datos de los ${selected.people} asistentes.`}
+              {isGeneral ? 'Elige cuántas entradas quieres y completa los datos únicos de cada asistente.' : `Completa los datos únicos de los ${selected.people} asistentes.`}
             </p>
-            <form onSubmit={submit} noValidate>
+            <form onSubmit={handleAttendeesSubmit} noValidate>
               {isGeneral && (
                 <div className="qty-picker">
                   <div>
@@ -242,7 +516,9 @@ function PurchaseModal({ selected, onClose }: { selected: Package; onClose: () =
                   <span>Total{isGeneral && quantity > 1 ? ` · ${quantity} × S/. ${selected.price}` : ''}</span>
                   <strong>S/. {total}</strong>
                 </div>
-                <button className="button button-primary" type="submit">Continuar <ArrowRight size={17} /></button>
+                <button className="button button-primary" type="submit" disabled={validating}>
+                  {validating ? <><Loader2 size={16} className="spin-icon" /> Validando...</> : <>Siguiente <ArrowRight size={17} /></>}
+                </button>
               </div>
             </form>
           </>
@@ -296,6 +572,7 @@ export default function EventLanding() {
         <div className="hero-image" />
         <div className="hero-overlay" />
         <div className="hero-content">
+          <p className="hero-kicker"><span className="live-dot" />After Hours presenta · Arequipa</p>
           <h1 className="hero-title">
             <span className="t-outline">The Last</span>
             <span className="t-neon">Mini Fight</span>
@@ -366,7 +643,7 @@ export default function EventLanding() {
             )
           })}
         </div>
-        <p className="tickets-fineprint">Pago simulado · Las compras son una demostración interactiva. No se procesan pagos reales.</p>
+        <p className="tickets-fineprint">Pago verificado al instante vía Yape · Código QR único por compra.</p>
       </section>
 
       <section className="bar-section" id="bar">
