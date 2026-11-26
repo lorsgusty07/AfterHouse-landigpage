@@ -9,6 +9,13 @@ export type AsistenteInput = {
   correo: string
 }
 
+export type PromotorRecord = {
+  nombre: string
+  codigo: string
+  creadoEn: string
+  timestamp: number
+}
+
 export type EntradaRecord = {
   codigoQr: string
   escaneado: boolean
@@ -19,6 +26,8 @@ export type EntradaRecord = {
   precioTotal: number
   metodoPago: MetodoPago
   pagoId: string
+  codigoPromotor?: string | null
+  promotorNombre?: string | null
   pagador: {
     nombreTitular: string
     codigoSeguridad: string | null
@@ -338,3 +347,45 @@ export function findMatchingYapePago(
   return null
 }
 
+
+export function normalizePromoCode(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, '')
+    .trim()
+}
+
+export function generatePromoCode(nombre: string, existingCodes: Set<string>): string {
+  const cleanName = nombre
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '')
+
+  const prefix = (cleanName.slice(0, 5) || 'PROMO').padEnd(3, 'X')
+
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const suffix = String(Math.floor(10 + Math.random() * 90))
+    const candidate = `${prefix}${suffix}`
+    if (!existingCodes.has(candidate)) return candidate
+  }
+
+  return `${prefix}${Date.now().toString().slice(-4)}`
+}
+
+export function findPromotorByCode(
+  promotores: Record<string, PromotorRecord> | null,
+  rawCode: string
+): { id: string; promotor: PromotorRecord } | null {
+  const code = normalizePromoCode(rawCode)
+  if (!code || !promotores) return null
+
+  for (const [id, promotor] of Object.entries(promotores)) {
+    if (promotor && normalizePromoCode(promotor.codigo) === code) {
+      return { id, promotor }
+    }
+  }
+  return null
+}

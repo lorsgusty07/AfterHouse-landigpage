@@ -2623,3 +2623,56 @@ input:focus-visible {
 .button-soldout:hover {
   transform: none;
 }
+
+/* ───────── Promotor Code Field ───────── */
+.promo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #130d1a;
+  border: 1px dashed #4a355c;
+  color: #d6c8e0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.promo-field small {
+  color: #8f8398;
+  font-weight: 500;
+}
+
+.promo-field input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  background: #1a1422;
+  border: 1px solid #3e3148;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.promo-field input::placeholder {
+  color: #6f6575;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.promo-field input:focus {
+  outline: 1px solid #a65ce0;
+  border-color: #a65ce0;
+}
+
+.promo-applied {
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(196, 132, 241, .14);
+  border: 1px solid rgba(196, 132, 241, .35);
+  color: #ecd4ff;
+  font-size: 11px;
+}

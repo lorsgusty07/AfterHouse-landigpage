@@ -5,22 +5,36 @@ import {
   AlertTriangle,
   Camera,
   CameraOff,
+  Check,
   CheckCircle2,
+  Copy,
   DollarSign,
   Loader2,
   Lock,
   LogOut,
+  Megaphone,
+  Plus,
   QrCode,
   RefreshCw,
   Search,
   Ticket,
+  Trash2,
   Users,
   XCircle,
 } from 'lucide-react'
-import type { EntradaRecord } from '@/lib/entradas'
+import type { EntradaRecord, PromotorRecord } from '@/lib/entradas'
 import './dashboard.css'
 
 type EntradaItem = EntradaRecord & { id: string }
+type PromotorStats = {
+  compras: number
+  entradas: number
+  asistentes: number
+  totalVendido: number
+  porTipo: { general: number; platinum: number; diamond: number }
+}
+type PromotorItem = PromotorRecord & { id: string; stats: PromotorStats }
+
 type Stats = {
   totalCompras: number
   totalEntradas: number
@@ -63,13 +77,23 @@ export default function DashboardPage() {
   const [loggingIn, setLoggingIn] = useState(false)
 
   // Dashboard state
-  const [tab, setTab] = useState<'resumen' | 'escaner'>('resumen')
+  const [tab, setTab] = useState<'resumen' | 'promotores' | 'escaner'>('resumen')
   const [loadingData, setLoadingData] = useState(false)
   const [dataError, setDataError] = useState('')
   const [stats, setStats] = useState<Stats | null>(null)
   const [entradas, setEntradas] = useState<EntradaItem[]>([])
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'scanned'>('all')
+
+  // Promotores state
+  const [promotores, setPromotores] = useState<PromotorItem[]>([])
+  const [promoNombre, setPromoNombre] = useState('')
+  const [promoCodigo, setPromoCodigo] = useState('')
+  const [creatingPromo, setCreatingPromo] = useState(false)
+  const [promoError, setPromoError] = useState('')
+  const [createdPromo, setCreatedPromo] = useState<PromotorRecord | null>(null)
+  const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [deletingPromoId, setDeletingPromoId] = useState<string | null>(null)
 
   // Scanner state
   const [cameraActive, setCameraActive] = useState(false)
@@ -80,22 +104,41 @@ export default function DashboardPage() {
   const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null)
   const scanBusyRef = useRef(false)
 
-  const fetchEntradas = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     setLoadingData(true)
     setDataError('')
     try {
-      const res = await fetch('/api/admin/entradas', { cache: 'no-store' })
-      if (res.status === 401) {
+      const [resEntradas, resPromos] = await Promise.all([
+        fetch('/api/admin/entradas', { cache: 'no-store' }),
+        fetch('/api/admin/promotores', { cache: 'no-store' }),
+      ])
+
+      if (resEntradas.status === 401 || resPromos.status === 401) {
         setAuthenticated(false)
         return
       }
-      const data = (await res.json()) as { ok?: boolean; stats?: Stats; entradas?: EntradaItem[]; error?: string }
-      if (!res.ok || !data.ok) {
-        setDataError(data.error || 'Error al cargar las entradas.')
-        return
+
+      const dataEntradas = (await resEntradas.json()) as {
+        ok?: boolean
+        stats?: Stats
+        entradas?: EntradaItem[]
+        error?: string
       }
-      setStats(data.stats ?? null)
-      setEntradas(data.entradas ?? [])
+      if (!resEntradas.ok || !dataEntradas.ok) {
+        setDataError(dataEntradas.error || 'Error al cargar las entradas.')
+      } else {
+        setStats(dataEntradas.stats ?? null)
+        setEntradas(dataEntradas.entradas ?? [])
+      }
+
+      const dataPromos = (await resPromos.json()) as {
+        ok?: boolean
+        promotores?: PromotorItem[]
+        error?: string
+      }
+      if (resPromos.ok && dataPromos.ok) {
+        setPromotores(dataPromos.promotores ?? [])
+      }
     } catch {
       setDataError('Error de conexión con el servidor.')
     } finally {
@@ -109,12 +152,12 @@ export default function DashboardPage() {
       .then((data: { authenticated?: boolean }) => {
         if (data.authenticated) {
           setAuthenticated(true)
-          fetchEntradas()
+          fetchAll()
         }
       })
       .catch(() => {})
       .finally(() => setCheckingAuth(false))
-  }, [fetchEntradas])
+  }, [fetchAll])
 
   const stopCamera = useCallback(async () => {
     const instance = scannerRef.current
@@ -163,7 +206,7 @@ export default function DashboardPage() {
         const data = (await res.json()) as ScanResult
         setScanResult(data)
         if (data.status === 'ok') {
-          fetchEntradas()
+          fetchAll()
         }
       } catch {
         setScanResult({ status: 'error', message: 'Error de red al validar el código.' })
@@ -171,7 +214,7 @@ export default function DashboardPage() {
         setScanningApi(false)
       }
     },
-    [fetchEntradas]
+    [fetchAll]
   )
 
   const startCamera = async () => {
@@ -209,6 +252,75 @@ export default function DashboardPage() {
     scanBusyRef.current = false
   }
 
+  const handleCreatePromotor = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setPromoError('')
+    setCreatedPromo(null)
+    const nombre = promoNombre.trim()
+    if (nombre.length < 2) {
+      setPromoError('Ingresa el nombre del promotor.')
+      return
+    }
+
+    setCreatingPromo(true)
+    try {
+      const res = await fetch('/api/admin/promotores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre,
+          codigo: promoCodigo.trim() || undefined,
+        }),
+      })
+      if (res.status === 401) {
+        setAuthenticated(false)
+        return
+      }
+      const data = (await res.json()) as { ok?: boolean; promotor?: PromotorRecord; error?: string }
+      if (!res.ok || !data.ok || !data.promotor) {
+        setPromoError(data.error || 'No se pudo crear el promotor.')
+        return
+      }
+      setCreatedPromo(data.promotor)
+      setPromoNombre('')
+      setPromoCodigo('')
+      fetchAll()
+    } catch {
+      setPromoError('Error de conexión al crear el promotor.')
+    } finally {
+      setCreatingPromo(false)
+    }
+  }
+
+  const handleDeletePromotor = async (id: string, nombre: string) => {
+    if (!window.confirm(`¿Eliminar al promotor "${nombre}"? Las entradas ya vendidas conservarán su registro.`)) {
+      return
+    }
+    setDeletingPromoId(id)
+    try {
+      const res = await fetch(`/api/admin/promotores?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (res.status === 401) {
+        setAuthenticated(false)
+        return
+      }
+      if (res.ok) {
+        setPromotores(current => current.filter(p => p.id !== id))
+      }
+    } finally {
+      setDeletingPromoId(null)
+    }
+  }
+
+  const copyPromoCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopiedCode(code)
+      setTimeout(() => setCopiedCode(null), 1800)
+    } catch {
+      // ignore
+    }
+  }
+
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault()
     setLoginError('')
@@ -226,7 +338,7 @@ export default function DashboardPage() {
       }
       setAuthenticated(true)
       setPassword('')
-      fetchEntradas()
+      fetchAll()
     } catch {
       setLoginError('Error de conexión.')
     } finally {
@@ -239,6 +351,7 @@ export default function DashboardPage() {
     await fetch('/api/admin/login', { method: 'DELETE' })
     setAuthenticated(false)
     setEntradas([])
+    setPromotores([])
     setStats(null)
   }
 
@@ -250,7 +363,9 @@ export default function DashboardPage() {
     const inHeader =
       (item.codigoQr || '').toLowerCase().includes(q) ||
       (item.tipoNombre || '').toLowerCase().includes(q) ||
-      (item.pagador?.nombreTitular || '').toLowerCase().includes(q)
+      (item.pagador?.nombreTitular || '').toLowerCase().includes(q) ||
+      (item.codigoPromotor || '').toLowerCase().includes(q) ||
+      (item.promotorNombre || '').toLowerCase().includes(q)
     const inAttendees = (item.asistentes || []).some(
       a =>
         `${a.nombres} ${a.apellidos}`.toLowerCase().includes(q) ||
@@ -331,6 +446,13 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
+              className={`dash-tab ${tab === 'promotores' ? 'is-active' : ''}`}
+              onClick={() => setTab('promotores')}
+            >
+              <Megaphone size={15} /> Promotores ({promotores.length})
+            </button>
+            <button
+              type="button"
               className={`dash-tab ${tab === 'escaner' ? 'is-active' : ''}`}
               onClick={() => setTab('escaner')}
             >
@@ -339,7 +461,7 @@ export default function DashboardPage() {
           </nav>
         </div>
         <div className="dash-header-actions">
-          <button type="button" className="dash-icon-btn" onClick={fetchEntradas} disabled={loadingData} title="Actualizar">
+          <button type="button" className="dash-icon-btn" onClick={fetchAll} disabled={loadingData} title="Actualizar">
             <RefreshCw size={15} className={loadingData ? 'spin-icon' : ''} />
             <span>Actualizar</span>
           </button>
@@ -405,7 +527,7 @@ export default function DashboardPage() {
                   type="text"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  placeholder="Buscar por nombre, DNI, correo o código QR..."
+                  placeholder="Buscar por nombre, DNI, correo, promotor o código QR..."
                 />
               </div>
               <div className="dash-filters">
@@ -432,9 +554,16 @@ export default function DashboardPage() {
                   <article key={item.id} className={`dash-entry ${item.escaneado ? 'is-scanned' : ''}`}>
                     <div className="dash-entry-top">
                       <div className="dash-entry-title">
-                        <span className={`dash-badge ${item.escaneado ? 'badge-ok' : 'badge-pending'}`}>
-                          {item.escaneado ? '✓ Escaneado · Ingresó' : 'Pendiente de ingreso'}
-                        </span>
+                        <div className="dash-badges-row">
+                          <span className={`dash-badge ${item.escaneado ? 'badge-ok' : 'badge-pending'}`}>
+                            {item.escaneado ? '✓ Escaneado · Ingresó' : 'Pendiente de ingreso'}
+                          </span>
+                          {item.codigoPromotor && (
+                            <span className="dash-badge badge-promo">
+                              Promotor: {item.promotorNombre ? `${item.promotorNombre} (${item.codigoPromotor})` : item.codigoPromotor}
+                            </span>
+                          )}
+                        </div>
                         <h3>
                           {item.tipoNombre} {item.tipo === 'general' && item.cantidad > 1 ? `×${item.cantidad}` : ''}
                         </h3>
@@ -463,6 +592,108 @@ export default function DashboardPage() {
               )}
             </section>
           </>
+        ) : tab === 'promotores' ? (
+          <section className="promo-section">
+            <form className="promo-create-card" onSubmit={handleCreatePromotor}>
+              <div>
+                <h2>Registrar promotor</h2>
+                <p>Ingresa el nombre del promotor y genera su código único para rastrear sus ventas.</p>
+              </div>
+              <div className="promo-create-grid">
+                <label className="form-field">
+                  <span>Nombre del promotor</span>
+                  <input
+                    type="text"
+                    value={promoNombre}
+                    onChange={e => setPromoNombre(e.target.value)}
+                    placeholder="Ej. Carlos Mendoza"
+                    maxLength={80}
+                    required
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Código personalizado (opcional)</span>
+                  <input
+                    type="text"
+                    value={promoCodigo}
+                    onChange={e => setPromoCodigo(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))}
+                    placeholder="Vacío = generar automático"
+                    maxLength={20}
+                  />
+                </label>
+                <button type="submit" className="button button-primary promo-create-btn" disabled={creatingPromo}>
+                  {creatingPromo ? <Loader2 size={16} className="spin-icon" /> : <Plus size={16} />}
+                  {creatingPromo ? 'Creando...' : 'Generar promotor'}
+                </button>
+              </div>
+              {promoError && <p className="form-error">{promoError}</p>}
+              {createdPromo && (
+                <div className="promo-created-banner">
+                  <span>
+                    Promotor <strong>{createdPromo.nombre}</strong> creado con código{' '}
+                    <code>{createdPromo.codigo}</code>
+                  </span>
+                  <button type="button" className="copy-btn" onClick={() => copyPromoCode(createdPromo.codigo)}>
+                    {copiedCode === createdPromo.codigo ? <><Check size={13} /> Copiado</> : <><Copy size={13} /> Copiar código</>}
+                  </button>
+                </div>
+              )}
+            </form>
+
+            <div className="promo-list">
+              {loadingData && promotores.length === 0 ? (
+                <div className="dash-empty">Cargando promotores...</div>
+              ) : promotores.length === 0 ? (
+                <div className="dash-empty">Aún no hay promotores registrados. Crea el primero arriba.</div>
+              ) : (
+                promotores.map(promo => (
+                  <article key={promo.id} className="promo-card">
+                    <div className="promo-card-head">
+                      <div className="promo-card-info">
+                        <h3>{promo.nombre}</h3>
+                        <div className="promo-code-row">
+                          <code className="promo-code-chip">{promo.codigo}</code>
+                          <button type="button" className="copy-btn" onClick={() => copyPromoCode(promo.codigo)}>
+                            {copiedCode === promo.codigo ? <><Check size={13} /> Copiado</> : <><Copy size={13} /> Copiar</>}
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="promo-delete-btn"
+                        disabled={deletingPromoId === promo.id}
+                        onClick={() => handleDeletePromotor(promo.id, promo.nombre)}
+                        title="Eliminar promotor"
+                        aria-label={`Eliminar promotor ${promo.nombre}`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+
+                    <div className="promo-metrics">
+                      <div className="promo-metric promo-metric-accent">
+                        <span>Entradas</span>
+                        <strong>{promo.stats.entradas}</strong>
+                        <small>
+                          Gen: {promo.stats.porTipo.general} · Plat: {promo.stats.porTipo.platinum} · Diam: {promo.stats.porTipo.diamond}
+                        </small>
+                      </div>
+                      <div className="promo-metric">
+                        <span>Asistentes</span>
+                        <strong>{promo.stats.asistentes}</strong>
+                        <small>{promo.stats.compras} {promo.stats.compras === 1 ? 'compra' : 'compras'}</small>
+                      </div>
+                      <div className="promo-metric">
+                        <span>Total vendido</span>
+                        <strong>S/. {promo.stats.totalVendido}</strong>
+                        <small>Recaudado</small>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
         ) : (
           <section className="dash-scanner-wrap">
             <div className="dash-scanner-card">
@@ -528,6 +759,9 @@ export default function DashboardPage() {
                         <span><strong>Tipo:</strong> {scanResult.entrada.tipoNombre}</span>
                         <span><strong>Total:</strong> S/. {scanResult.entrada.precioTotal}</span>
                         <span><strong>Titular pago:</strong> {scanResult.entrada.pagador?.nombreTitular}</span>
+                        {scanResult.entrada.codigoPromotor && (
+                          <span><strong>Promotor:</strong> {scanResult.entrada.promotorNombre || scanResult.entrada.codigoPromotor}</span>
+                        )}
                         {scanResult.entrada.escaneadoEn && (
                           <span><strong>Escaneado:</strong> {formatDate(scanResult.entrada.escaneadoEn)}</span>
                         )}
@@ -586,4 +820,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-

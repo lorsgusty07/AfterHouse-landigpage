@@ -7,10 +7,13 @@ import {
   PACKAGES_CATALOG,
   type PackageId,
   type PagoYapeRecord,
+  type PromotorRecord,
   checkBoxStock,
   findExistingDuplicates,
   findInternalDuplicates,
   findMatchingYapePago,
+  findPromotorByCode,
+  normalizePromoCode,
   validateAsistentesFormat,
 } from '@/lib/entradas'
 
@@ -22,6 +25,7 @@ export async function POST(request: Request) {
       metodoPago?: MetodoPago
       nombreTitular?: string
       codigoSeguridad?: string
+      codigoPromotor?: string
       asistentes?: AsistenteInput[]
     }
 
@@ -30,6 +34,7 @@ export async function POST(request: Request) {
     const metodoPago: MetodoPago = body.metodoPago || 'yape'
     const nombreTitular = (body.nombreTitular || '').trim()
     const codigoSeguridad = (body.codigoSeguridad || '').replace(/\D/g, '').slice(0, 3) || null
+    const rawPromo = (body.codigoPromotor || '').trim()
     const asistentes = body.asistentes ?? []
 
     if (!tipo || !PACKAGES_CATALOG[tipo]) {
@@ -50,6 +55,22 @@ export async function POST(request: Request) {
     const internalError = findInternalDuplicates(asistentes)
     if (internalError) {
       return NextResponse.json({ ok: false, error: internalError }, { status: 400 })
+    }
+
+    // Validar código de promotor (si fue ingresado)
+    let codigoPromotor: string | null = null
+    let promotorNombre: string | null = null
+    if (rawPromo) {
+      const promotores = await rtdbGet<Record<string, PromotorRecord>>('promotores')
+      const found = findPromotorByCode(promotores, normalizePromoCode(rawPromo))
+      if (!found) {
+        return NextResponse.json(
+          { ok: false, error: `El código de promotor "${rawPromo}" no existe. Verifícalo o déjalo vacío.` },
+          { status: 400 }
+        )
+      }
+      codigoPromotor = found.promotor.codigo
+      promotorNombre = found.promotor.nombre
     }
 
     // Revalidar stock de boxes y duplicados en Firebase antes de consumir el pago
@@ -116,6 +137,8 @@ export async function POST(request: Request) {
       precioTotal,
       metodoPago,
       pagoId: match.pagoId,
+      codigoPromotor,
+      promotorNombre,
       pagador: {
         nombreTitular,
         codigoSeguridad,

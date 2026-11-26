@@ -136,6 +136,10 @@ function PurchaseModal({ selected, onClose, onConfirmed }: { selected: Package; 
   const [error, setError] = useState('')
   const [validating, setValidating] = useState(false)
 
+  // Promotor (opcional)
+  const [codigoPromotor, setCodigoPromotor] = useState('')
+  const [promotorValidado, setPromotorValidado] = useState<{ codigo: string; nombre: string } | null>(null)
+
   // Paso de pago
   const [nombreTitular, setNombreTitular] = useState('')
   const [codigoSeguridad, setCodigoSeguridad] = useState('')
@@ -216,14 +220,20 @@ function PurchaseModal({ selected, onClose, onConfirmed }: { selected: Package; 
         body: JSON.stringify({
           tipo: selected.id,
           cantidad: isGeneral ? quantity : 1,
+          codigoPromotor: codigoPromotor.trim() || undefined,
           asistentes: apiAsistentes,
         }),
       })
-      const data = (await res.json()) as { ok?: boolean; error?: string }
+      const data = (await res.json()) as {
+        ok?: boolean
+        promotor?: { codigo: string; nombre: string } | null
+        error?: string
+      }
       if (!res.ok || !data.ok) {
         setError(data.error || 'No se pudieron validar los asistentes.')
         return
       }
+      setPromotorValidado(data.promotor ?? null)
       if (!nombreTitular.trim()) {
         setNombreTitular(`${attendees[0].firstName.trim()} ${attendees[0].lastName.trim()}`)
       }
@@ -279,6 +289,7 @@ function PurchaseModal({ selected, onClose, onConfirmed }: { selected: Package; 
             metodoPago: 'yape',
             nombreTitular: titular,
             codigoSeguridad: cleanCode || null,
+            codigoPromotor: (promotorValidado?.codigo || codigoPromotor.trim()) || undefined,
             asistentes: apiAsistentes,
           }),
         })
@@ -411,6 +422,11 @@ function PurchaseModal({ selected, onClose, onConfirmed }: { selected: Package; 
                       <span>Monto exacto</span>
                       <strong>S/. {total}</strong>
                     </div>
+                    {promotorValidado && (
+                      <div className="promo-applied">
+                        Promotor: <strong>{promotorValidado.nombre}</strong> ({promotorValidado.codigo})
+                      </div>
+                    )}
                     <p className="yape-tip">Puedes yapear escaneando el QR o desde Plin al número indicado.</p>
                   </div>
                 </div>
@@ -560,6 +576,18 @@ function PurchaseModal({ selected, onClose, onConfirmed }: { selected: Package; 
                     <AttendeeFields attendee={attendees[0]} showErrors={revealed.includes(0)} onChange={(key, value) => updateAttendee(0, key, value)} />
                   </div>
                 )}
+
+                <label className="promo-field">
+                  <span>Código de promotor <small>(opcional)</small></span>
+                  <input
+                    type="text"
+                    value={codigoPromotor}
+                    placeholder="Ej. CARLOS48"
+                    maxLength={20}
+                    autoComplete="off"
+                    onChange={e => setCodigoPromotor(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))}
+                  />
+                </label>
               </div>
 
               {error && <p className="form-error" role="alert">{error}</p>}

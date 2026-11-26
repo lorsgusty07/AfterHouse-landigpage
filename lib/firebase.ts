@@ -59,3 +59,14 @@ export async function rtdbPut<T>(path: string, data: T): Promise<void> {
   }
 }
 
+
+export async function rtdbDelete(path: string): Promise<void> {
+  const res = await fetch(buildUrl(path), {
+    method: 'DELETE',
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Firebase DELETE ${path} falló (${res.status}): ${text}`)
+  }
+}
